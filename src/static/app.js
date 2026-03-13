@@ -106,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentUser = JSON.parse(savedUser);
         updateAuthUI();
         // Verify the stored user with the server
-        validateUserSession(currentUser.username);
+        validateUserSession();
       } catch (error) {
         console.error("Error parsing saved user", error);
         logout(); // Clear invalid data
@@ -118,11 +118,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Validate user session with the server
-  async function validateUserSession(username) {
+  async function validateUserSession() {
     try {
-      const response = await fetch(
-        `/auth/check-session?username=${encodeURIComponent(username)}`
-      );
+      const token = currentUser && currentUser.token;
+      if (!token) {
+        logout();
+        return;
+      }
+      const response = await fetch("/auth/check-session", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!response.ok) {
         // Session invalid, log out
@@ -130,10 +135,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Session is valid, update user data
+      // Session is valid, update user data (preserve stored token)
       const userData = await response.json();
-      currentUser = userData;
-      localStorage.setItem("currentUser", JSON.stringify(userData));
+      currentUser = { ...userData, token };
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
       updateAuthUI();
     } catch (error) {
       console.error("Error validating session:", error);
@@ -203,7 +208,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Logout function
-  function logout() {
+  async function logout() {
+    if (currentUser && currentUser.token) {
+      try {
+        await fetch("/auth/logout", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${currentUser.token}` },
+        });
+      } catch (error) {
+        console.error("Error during logout:", error);
+      }
+    }
     currentUser = null;
     localStorage.removeItem("currentUser");
     updateAuthUI();
@@ -774,11 +789,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const response = await fetch(
             `/activities/${encodeURIComponent(
               activity
-            )}/unregister?email=${encodeURIComponent(
-              email
-            )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
+            )}/unregister?email=${encodeURIComponent(email)}`,
             {
               method: "POST",
+              headers: { Authorization: `Bearer ${currentUser.token}` },
             }
           );
 
@@ -831,11 +845,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch(
         `/activities/${encodeURIComponent(
           activity
-        )}/signup?email=${encodeURIComponent(
-          email
-        )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
+        )}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers: { Authorization: `Bearer ${currentUser.token}` },
         }
       );
 

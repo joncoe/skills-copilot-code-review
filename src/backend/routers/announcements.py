@@ -5,11 +5,12 @@ Announcement endpoints for the High School Management System API
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from bson import ObjectId
 
-from ..database import announcements_collection, teachers_collection
+from ..database import announcements_collection
+from ..dependencies import get_current_teacher
 
 router = APIRouter(
     prefix="/announcements",
@@ -57,18 +58,6 @@ def _parse_iso_date(date_value: Optional[str], field_name: str) -> Optional[date
         ) from exc
 
 
-def _ensure_signed_in(username: Optional[str]) -> Dict[str, Any]:
-    """Verify that a teacher/admin user exists for this request."""
-    if not username:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    teacher = teachers_collection.find_one({"_id": username})
-    if not teacher:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    return teacher
-
-
 def _serialize_announcement(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Convert Mongo document into API response payload."""
     return {
@@ -105,19 +94,15 @@ def list_active_announcements() -> List[Dict[str, Any]]:
 
 
 @router.get("/manage", response_model=List[Dict[str, Any]])
-def list_all_announcements(teacher_username: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
+def list_all_announcements(current_teacher: Dict[str, Any] = Depends(get_current_teacher)) -> List[Dict[str, Any]]:
     """Get all announcements for management. Requires a signed-in user."""
-    _ensure_signed_in(teacher_username)
-
     docs = announcements_collection.find({}).sort("expiration_date", 1)
     return [_serialize_announcement(doc) for doc in docs]
 
 
 @router.post("", response_model=Dict[str, Any])
-def create_announcement(payload: AnnouncementCreate, teacher_username: Optional[str] = Query(None)) -> Dict[str, Any]:
+def create_announcement(payload: AnnouncementCreate, current_teacher: Dict[str, Any] = Depends(get_current_teacher)) -> Dict[str, Any]:
     """Create a new announcement. Requires a signed-in user."""
-    _ensure_signed_in(teacher_username)
-
     start_date = _parse_iso_date(payload.start_date, "start_date")
     expiration_date = _parse_iso_date(payload.expiration_date, "expiration_date")
 
@@ -163,11 +148,9 @@ def create_announcement(payload: AnnouncementCreate, teacher_username: Optional[
 def update_announcement(
     announcement_id: str,
     payload: AnnouncementUpdate,
-    teacher_username: Optional[str] = Query(None),
+    current_teacher: Dict[str, Any] = Depends(get_current_teacher),
 ) -> Dict[str, Any]:
     """Update an existing announcement. Requires a signed-in user."""
-    _ensure_signed_in(teacher_username)
-
     if not ObjectId.is_valid(announcement_id):
         raise HTTPException(status_code=404, detail="Announcement not found")
 
@@ -217,10 +200,8 @@ def update_announcement(
 
 
 @router.delete("/{announcement_id}", response_model=Dict[str, Any])
-def delete_announcement(announcement_id: str, teacher_username: Optional[str] = Query(None)) -> Dict[str, Any]:
+def delete_announcement(announcement_id: str, current_teacher: Dict[str, Any] = Depends(get_current_teacher)) -> Dict[str, Any]:
     """Delete an announcement. Requires a signed-in user."""
-    _ensure_signed_in(teacher_username)
-
     if not ObjectId.is_valid(announcement_id):
         raise HTTPException(status_code=404, detail="Announcement not found")
 
