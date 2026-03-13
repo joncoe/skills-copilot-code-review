@@ -130,9 +130,24 @@ def create_announcement(payload: AnnouncementCreate, teacher_username: Optional[
             detail="start_date cannot be later than expiration_date",
         )
 
+    stripped_title = payload.title.strip()
+    stripped_message = payload.message.strip()
+
+    if not stripped_title:
+        raise HTTPException(
+            status_code=422,
+            detail="title must not be empty or whitespace",
+        )
+
+    if not stripped_message:
+        raise HTTPException(
+            status_code=422,
+            detail="message must not be empty or whitespace",
+        )
+
     announcement = {
-        "title": payload.title.strip(),
-        "message": payload.message.strip(),
+        "title": stripped_title,
+        "message": stripped_message,
         "start_date": start_date.isoformat() if start_date else None,
         "expiration_date": expiration_date.isoformat(),
     }
@@ -168,12 +183,27 @@ def update_announcement(
             detail="start_date cannot be later than expiration_date",
         )
 
+    stripped_title = payload.title.strip()
+    stripped_message = payload.message.strip()
+
+    if not stripped_title:
+        raise HTTPException(
+            status_code=422,
+            detail="title must not be empty or whitespace",
+        )
+
+    if not stripped_message:
+        raise HTTPException(
+            status_code=422,
+            detail="message must not be empty or whitespace",
+        )
+
     result = announcements_collection.update_one(
         {"_id": ObjectId(announcement_id)},
         {
             "$set": {
-                "title": payload.title.strip(),
-                "message": payload.message.strip(),
+                "title": stripped_title,
+                "message": stripped_message,
                 "start_date": start_date.isoformat() if start_date else None,
                 "expiration_date": expiration_date.isoformat(),
             }
