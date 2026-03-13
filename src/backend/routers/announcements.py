@@ -96,7 +96,6 @@ def list_active_announcements() -> List[Dict[str, Any]]:
         "expiration_date": {"$gte": today},
         "$or": [
             {"start_date": None},
-            {"start_date": {"$exists": False}},
             {"start_date": {"$lte": today}},
         ],
     }
